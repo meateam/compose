@@ -1,0 +1,59 @@
+version: '3'
+services:
+  kartoffel:
+    image: 'kartoffel:latest'
+    ports:
+      - '4000:3000'
+    env_file:
+      - ./env/kartoffel.env
+    environment:
+      - EMENABLE_AUTH=false
+  users-service:
+    image: 'users-service:latest'
+    ports:
+      - '5000:3000'
+      - '50051:50051'
+    env_file:
+      - ./env/users.env
+    environment:
+      KARTOFFEL_URL: 'http://kartoffel:3000'
+    depends_on:
+      - kartoffel
+    links:
+      - kartoffel
+  authentication-service:
+    build: ../authenticator
+    ports: 
+      - '5010:3000'
+    env_file:
+      - ./env/authenticator.env
+    restart: always
+    depends_on:
+      - saml-idp
+      - users-service
+    links:
+      - saml-idp
+      - users-service
+  # SAML Test IDP
+  saml-idp:
+    image: kristophjunge/test-saml-idp
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    env_file:
+      - ./env/authenticator.env
+    volumes:
+      - ./authentication/config/users.php:/var/www/simplesamlphp/config/authsources.php
+    restart: always
+  # User Client Test
+  user-client:
+    build: ../biran_proto
+    ports:
+      - '3005:3005'
+    # Nginx
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
